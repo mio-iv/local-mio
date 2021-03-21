@@ -2,3 +2,5 @@
 The first Repository for mio
 
 kakunini
+
+checkout info
