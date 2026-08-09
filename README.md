@@ -1,6 +1,13 @@
-# local-mio
-The first Repository for mio
+# ちょぼと ひみつのパーツ
 
-kakunini
+小さな卓上ロボット「ちょぼ」が、巨大に見える居心地のよい部屋を探検する3ステージ構成のWeb 3Dゲームです。
 
-checkout info
+```bash
+npm install
+npm run dev
+```
+
+Viteが表示したローカルURLをChromeまたはEdgeで開いてください。操作はWASD/矢印キー、カメラ回転はQ/Eまたはマウスドラッグです。
+
+現在の標準URLは <http://127.0.0.1:5173/> です。ステージごとに光る「ほしあかりパーツ」を集め、ステージ3をクリアするとタイトル画面へ戻ります。BGMは外部音声ファイルを使わず、開始操作後にブラウザ内で生成されます。
+The first Repository for chobo
