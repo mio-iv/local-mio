@@ -16,3 +16,5 @@
 | 12 | Procedural calm BGM | Complete |
 | 13 | Explicit start interaction and idle gestures | Complete |
 | 14 | Regression QA and local review ready | Complete; interactive browser unavailable |
+| 15 | Touch controls and smartphone layout | Complete |
+| 16 | Mobile performance and regression QA | Complete; interactive device browser unavailable |

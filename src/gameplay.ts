@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 
+import {
+  CHOBO_TOUCH_CAMERA_EVENT,
+  CHOBO_TOUCH_MOVE_EVENT,
+  type TouchCameraDetail,
+  type TouchMoveDetail,
+} from './input-events';
 import type {
   Collider,
   EnvironmentResult,
@@ -62,6 +68,7 @@ const DEFAULT_BOUNDS: PlayBounds = {
   maxZ: 6.4,
 };
 const INITIAL_CAMERA_YAW = Math.PI * 0.08;
+const TOUCH_DEADZONE = 0.12;
 
 const movementKeys = new Set([
   'w',
@@ -252,6 +259,9 @@ export function createGameplay(options: GameplayOptions): GameplayController {
   let cameraYaw = INITIAL_CAMERA_YAW;
   let pointerId: number | null = null;
   let pointerX = 0;
+  let touchMoveX = 0;
+  let touchMoveY = 0;
+  let touchCameraDirection: -1 | 0 | 1 = 0;
   let collectMoodTimer = 0;
   let robotHeading = robot.group.rotation.y;
 
@@ -304,9 +314,52 @@ export function createGameplay(options: GameplayOptions): GameplayController {
     keys.delete(event.key.toLowerCase());
   };
 
+  const clearTouchInput = (): void => {
+    touchMoveX = 0;
+    touchMoveY = 0;
+    touchCameraDirection = 0;
+  };
+
+  const releasePointerCapture = (): void => {
+    if (pointerId === null) return;
+    if (domElement.hasPointerCapture?.(pointerId)) domElement.releasePointerCapture(pointerId);
+    pointerId = null;
+  };
+
   const onBlur = (): void => {
     keys.clear();
-    pointerId = null;
+    clearTouchInput();
+    releasePointerCapture();
+  };
+
+  const onTouchMove = (event: Event): void => {
+    const detail = (event as CustomEvent<Partial<TouchMoveDetail>>).detail;
+    const rawX = Number.isFinite(detail?.x)
+      ? THREE.MathUtils.clamp(detail.x ?? 0, -1, 1)
+      : 0;
+    const rawY = Number.isFinite(detail?.y)
+      ? THREE.MathUtils.clamp(detail.y ?? 0, -1, 1)
+      : 0;
+    const magnitude = Math.hypot(rawX, rawY);
+    if (magnitude <= TOUCH_DEADZONE) {
+      touchMoveX = 0;
+      touchMoveY = 0;
+      return;
+    }
+
+    const scaledMagnitude = Math.min(
+      1,
+      (magnitude - TOUCH_DEADZONE) / (1 - TOUCH_DEADZONE),
+    );
+    touchMoveX = (rawX / magnitude) * scaledMagnitude;
+    touchMoveY = (rawY / magnitude) * scaledMagnitude;
+  };
+
+  const onTouchCamera = (event: Event): void => {
+    const detail = (event as CustomEvent<Partial<TouchCameraDetail>>).detail;
+    touchCameraDirection = detail?.direction === -1 || detail?.direction === 1
+      ? detail.direction
+      : 0;
   };
 
   const onPointerDown = (event: PointerEvent): void => {
@@ -325,13 +378,14 @@ export function createGameplay(options: GameplayOptions): GameplayController {
 
   const onPointerUp = (event: PointerEvent): void => {
     if (event.pointerId !== pointerId) return;
-    domElement.releasePointerCapture?.(event.pointerId);
-    pointerId = null;
+    releasePointerCapture();
   };
 
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);
+  window.addEventListener(CHOBO_TOUCH_MOVE_EVENT, onTouchMove);
+  window.addEventListener(CHOBO_TOUCH_CAMERA_EVENT, onTouchCamera);
   domElement.addEventListener('pointerdown', onPointerDown);
   domElement.addEventListener('pointermove', onPointerMove);
   domElement.addEventListener('pointerup', onPointerUp);
@@ -357,10 +411,14 @@ export function createGameplay(options: GameplayOptions): GameplayController {
       return false;
     }
 
-    const horizontal = (keys.has('d') || keys.has('arrowright') ? 1 : 0) -
-      (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
-    const vertical = (keys.has('w') || keys.has('arrowup') ? 1 : 0) -
-      (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
+    const horizontal =
+      (keys.has('d') || keys.has('arrowright') ? 1 : 0) -
+      (keys.has('a') || keys.has('arrowleft') ? 1 : 0) +
+      touchMoveX;
+    const vertical =
+      (keys.has('w') || keys.has('arrowup') ? 1 : 0) -
+      (keys.has('s') || keys.has('arrowdown') ? 1 : 0) +
+      touchMoveY;
     const forwardX = -Math.sin(cameraYaw);
     const forwardZ = -Math.cos(cameraYaw);
     const rightX = -forwardZ;
@@ -390,9 +448,12 @@ export function createGameplay(options: GameplayOptions): GameplayController {
       velocity.y = 0;
     }
 
-    const moving = velocity.lengthSq() > 0.04;
+    const physicallyMoving = velocity.lengthSq() > 0.04;
+    const movementInputActive = desiredVelocity.lengthSq() > 0.0025;
+    const moving = physicallyMoving || movementInputActive;
     if (moving) {
-      const desiredHeading = Math.atan2(velocity.x, velocity.y);
+      const headingVelocity = physicallyMoving ? velocity : desiredVelocity;
+      const desiredHeading = Math.atan2(headingVelocity.x, headingVelocity.y);
       robotHeading = dampAngle(robotHeading, desiredHeading, 14, delta);
       robot.group.rotation.y = robotHeading;
     }
@@ -400,7 +461,13 @@ export function createGameplay(options: GameplayOptions): GameplayController {
   };
 
   const updateCamera = (delta: number): void => {
-    const orbitDirection = (keys.has('e') ? 1 : 0) - (keys.has('q') ? 1 : 0);
+    const orbitDirection = THREE.MathUtils.clamp(
+      (keys.has('e') ? 1 : 0) -
+      (keys.has('q') ? 1 : 0) +
+      touchCameraDirection,
+      -1,
+      1,
+    );
     cameraYaw += orbitDirection * delta * 1.35;
 
     cameraTarget.set(
@@ -508,10 +575,8 @@ export function createGameplay(options: GameplayOptions): GameplayController {
 
   const reset = (): void => {
     keys.clear();
-    if (pointerId !== null) {
-      if (domElement.hasPointerCapture?.(pointerId)) domElement.releasePointerCapture(pointerId);
-      pointerId = null;
-    }
+    clearTouchInput();
+    releasePointerCapture();
     collected = 0;
     complete = false;
     collectMoodTimer = 0;
@@ -559,9 +624,14 @@ export function createGameplay(options: GameplayOptions): GameplayController {
   };
 
   const dispose = (): void => {
+    keys.clear();
+    clearTouchInput();
+    releasePointerCapture();
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('blur', onBlur);
+    window.removeEventListener(CHOBO_TOUCH_MOVE_EVENT, onTouchMove);
+    window.removeEventListener(CHOBO_TOUCH_CAMERA_EVENT, onTouchCamera);
     domElement.removeEventListener('pointerdown', onPointerDown);
     domElement.removeEventListener('pointermove', onPointerMove);
     domElement.removeEventListener('pointerup', onPointerUp);

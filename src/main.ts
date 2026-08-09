@@ -20,20 +20,29 @@ if (!mount) {
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.08, 45);
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+const mobileLike = window.matchMedia('(pointer: coarse)').matches;
+const renderer = new THREE.WebGLRenderer({ antialias: !mobileLike, powerPreference: 'high-performance' });
+const maxPixelRatio = mobileLike ? 1.25 : 1.75;
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = mobileLike ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.domElement.setAttribute('aria-label', 'ちょぼが探検する、あたたかな3Dの部屋');
 renderer.domElement.setAttribute('role', 'img');
 renderer.domElement.tabIndex = 0;
 mount.append(renderer.domElement);
 
 const environment = createEnvironment(scene);
+if (mobileLike) {
+  scene.traverse((object) => {
+    if (object instanceof THREE.DirectionalLight && object.castShadow) {
+      object.shadow.mapSize.set(512, 512);
+    }
+  });
+}
 const robot = createRobot();
 robot.group.position.copy(environment.spawnPoint);
 scene.add(robot.group);
@@ -112,7 +121,7 @@ const resize = (): void => {
   const height = Math.max(1, window.innerHeight);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
   renderer.setSize(width, height, false);
 };
 

@@ -59,3 +59,18 @@
 **Decision:** Start only from the visible button or Enter key.  
 **Reason:** Prevents accidental starts caused by touching the overlay.  
 **Trade-off:** Space and arbitrary clicks intentionally do nothing on the title screen.
+
+## Smartphone controls
+**Decision:** Use a left virtual joystick plus two right camera-turn buttons on touch-first devices, while preserving keyboard and mouse controls.
+**Reason:** Provides discoverable two-thumb control without requiring gestures that conflict with browser navigation.
+**Trade-off:** Camera pitch remains fixed to keep the mobile scheme simple and stable.
+
+## Mobile rendering
+**Decision:** Coarse-pointer devices use a 1.25 DPR cap, no renderer MSAA, PCF shadows and a 512² directional shadow map.
+**Reason:** Keeps the cozy 3D scene responsive on mid-range and lower-cost phones.
+**Trade-off:** Edges and shadows are slightly less smooth than on desktop.
+
+## Reversible trusted-LAN preview
+**Decision:** Keep `npm run dev` loopback-only and add a separate `npm run dev:lan` command that binds to `0.0.0.0` only when explicitly chosen.
+**Reason:** Allows phone testing on the same Wi-Fi while making later revocation clear and immediate.
+**Trade-off:** While the LAN command runs, other devices on that trusted local network can request the development site.

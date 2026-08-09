@@ -1,3 +1,9 @@
+import {
+  CHOBO_TOUCH_CAMERA_EVENT,
+  CHOBO_TOUCH_MOVE_EVENT,
+  type TouchCameraDetail,
+  type TouchMoveDetail,
+} from './input-events';
 import type { HUDController } from './types';
 
 export const HUD_START_EVENT = 'chobo-game-start';
@@ -13,12 +19,25 @@ let teardownCurrentHUD: (() => void) | undefined;
 
 type ActivationSource = 'keyboard' | 'pointer';
 
+const JOYSTICK_DEADZONE = 7;
+const JOYSTICK_MAX_RADIUS = 42;
+
 function emitStart(source: ActivationSource): void {
   window.dispatchEvent(new CustomEvent(HUD_START_EVENT, { detail: { source } }));
 }
 
 function emitStageAdvance(detail: HUDStageAdvanceDetail): void {
   window.dispatchEvent(new CustomEvent(HUD_STAGE_ADVANCE_EVENT, { detail }));
+}
+
+function emitTouchMove(x: number, y: number): void {
+  const detail: TouchMoveDetail = { x, y };
+  window.dispatchEvent(new CustomEvent(CHOBO_TOUCH_MOVE_EVENT, { detail }));
+}
+
+function emitTouchCamera(direction: -1 | 0 | 1): void {
+  const detail: TouchCameraDetail = { direction };
+  window.dispatchEvent(new CustomEvent(CHOBO_TOUCH_CAMERA_EVENT, { detail }));
 }
 
 function safeWhole(value: number, fallback: number, minimum = 0): number {
@@ -95,6 +114,22 @@ export function createHUD(total: number): HUDController {
       <span class="control-item mouse-control"><span class="mouse-icon" aria-hidden="true"></span><span>ドラッグ</span></span>
     </aside>
 
+    <section class="touch-controls" data-touch-controls aria-label="タッチ操作">
+      <div class="touch-move-control" data-joystick role="group" aria-label="移動ジョイスティック">
+        <span class="joystick-guide" aria-hidden="true"></span>
+        <span class="joystick-knob" data-joystick-knob aria-hidden="true"></span>
+        <span class="joystick-label" aria-hidden="true">MOVE</span>
+      </div>
+      <div class="touch-camera-controls" role="group" aria-label="カメラ操作">
+        <button class="touch-camera-button" type="button" data-touch-camera="-1" aria-label="カメラを左に回す">
+          <span aria-hidden="true">‹</span>
+        </button>
+        <button class="touch-camera-button" type="button" data-touch-camera="1" aria-label="カメラを右に回す">
+          <span aria-hidden="true">›</span>
+        </button>
+      </div>
+    </section>
+
     <div class="hint-toast" data-hint role="status" aria-live="polite" aria-atomic="true"></div>
 
     <section class="intro-overlay" data-intro role="dialog" aria-modal="true" aria-labelledby="intro-title" aria-describedby="intro-copy">
@@ -108,9 +143,15 @@ export function createHUD(total: number): HUDController {
           <span><kbd>Q</kbd><kbd>E</kbd><small>カメラを回す</small></span>
           <span><i aria-hidden="true">✦</i><small>近づくと自動でひろう</small></span>
         </div>
+        <div class="touch-intro-controls" aria-label="タッチでの基本操作">
+          <span><i class="touch-demo-stick" aria-hidden="true"><b></b></i><small>左スティックで歩く</small></span>
+          <span><i class="touch-demo-camera" aria-hidden="true"><b>‹</b><b>›</b></i><small>右ボタンでカメラ</small></span>
+          <span><i class="touch-demo-star" aria-hidden="true">✦</i><small>近づくと自動でひろう</small></span>
+        </div>
         <button class="primary-button" type="button" data-start aria-keyshortcuts="Enter">
           <span>たんけんを はじめる</span>
-          <small>Enter</small>
+          <small class="keyboard-shortcut">Enter</small>
+          <small class="touch-shortcut">タップ</small>
         </button>
         <p class="gentle-note">急がなくて大丈夫。ちょぼのペースで。</p>
       </div>
@@ -127,7 +168,8 @@ export function createHUD(total: number): HUDController {
         <p id="complete-copy" data-complete-copy>ほしあかりを、ぜんぶ見つけた！</p>
         <button class="primary-button advance-button" type="button" data-advance aria-keyshortcuts="Enter">
           <span data-advance-label>つぎのステージへ</span>
-          <small>Enter</small>
+          <small class="keyboard-shortcut">Enter</small>
+          <small class="touch-shortcut">タップ</small>
         </button>
       </div>
     </section>
@@ -146,6 +188,9 @@ export function createHUD(total: number): HUDController {
   const headingElement = root.querySelector<HTMLElement>('[data-heading]')!;
   const compassElement = root.querySelector<HTMLElement>('.compass')!;
   const hintElement = root.querySelector<HTMLElement>('[data-hint]')!;
+  const joystickElement = root.querySelector<HTMLElement>('[data-joystick]')!;
+  const joystickKnob = root.querySelector<HTMLElement>('[data-joystick-knob]')!;
+  const cameraButtons = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-touch-camera]'));
   const introElement = root.querySelector<HTMLElement>('[data-intro]')!;
   const startButton = root.querySelector<HTMLButtonElement>('[data-start]')!;
   const completeElement = root.querySelector<HTMLElement>('[data-complete]')!;
@@ -165,6 +210,13 @@ export function createHUD(total: number): HUDController {
   let advanceLocked = false;
   let hintTimer: number | undefined;
   let lastHeading = '';
+  let joystickPointerId: number | null = null;
+  let joystickCenterX = 0;
+  let joystickCenterY = 0;
+  let joystickMaxRadius = JOYSTICK_MAX_RADIUS;
+  let cameraPointerId: number | null = null;
+  let activeCameraButton: HTMLButtonElement | null = null;
+  const compactTouchQuery = window.matchMedia('(pointer: coarse) and (max-height: 400px)');
 
   const renderPips = (current: number, pipTotal: number): void => {
     pipsElement.replaceChildren();
@@ -194,6 +246,121 @@ export function createHUD(total: number): HUDController {
     gameSurface?.setAttribute('inert', '');
     gameSurface?.setAttribute('aria-hidden', 'true');
   };
+
+  const touchInputEnabled = (): boolean => !introVisible && !completeVisible;
+
+  const resetJoystick = (dispatch = true): void => {
+    const pointerId = joystickPointerId;
+    joystickPointerId = null;
+    joystickElement.classList.remove('is-active');
+    joystickKnob.style.transform = 'translate(-50%, -50%)';
+    if (pointerId !== null && joystickElement.hasPointerCapture(pointerId)) {
+      joystickElement.releasePointerCapture(pointerId);
+    }
+    if (dispatch) emitTouchMove(0, 0);
+  };
+
+  const resetCamera = (dispatch = true): void => {
+    const pointerId = cameraPointerId;
+    const button = activeCameraButton;
+    cameraPointerId = null;
+    button?.classList.remove('is-active');
+    activeCameraButton = null;
+    if (pointerId !== null && button?.hasPointerCapture(pointerId)) {
+      button.releasePointerCapture(pointerId);
+    }
+    if (dispatch) emitTouchCamera(0);
+  };
+
+  const resetTouchInput = (dispatch = true): void => {
+    resetJoystick(dispatch);
+    resetCamera(dispatch);
+  };
+
+  const updateJoystick = (clientX: number, clientY: number): void => {
+    const deltaX = clientX - joystickCenterX;
+    const deltaY = clientY - joystickCenterY;
+    const distance = Math.hypot(deltaX, deltaY);
+
+    if (distance <= JOYSTICK_DEADZONE) {
+      joystickKnob.style.transform = 'translate(-50%, -50%)';
+      emitTouchMove(0, 0);
+      return;
+    }
+
+    const directionX = deltaX / distance;
+    const directionY = deltaY / distance;
+    const limitedDistance = Math.min(distance, joystickMaxRadius);
+    const magnitude = (limitedDistance - JOYSTICK_DEADZONE) /
+      (joystickMaxRadius - JOYSTICK_DEADZONE);
+    joystickKnob.style.transform = `translate(calc(-50% + ${directionX * limitedDistance}px), calc(-50% + ${directionY * limitedDistance}px))`;
+    emitTouchMove(directionX * magnitude, -directionY * magnitude);
+  };
+
+  const handleJoystickDown = (event: PointerEvent): void => {
+    if (!touchInputEnabled() || joystickPointerId !== null || event.button !== 0) return;
+    event.preventDefault();
+    const bounds = joystickElement.getBoundingClientRect();
+    joystickCenterX = bounds.left + bounds.width / 2;
+    joystickCenterY = bounds.top + bounds.height / 2;
+    joystickMaxRadius = Math.max(
+      JOYSTICK_DEADZONE + 1,
+      Math.min(JOYSTICK_MAX_RADIUS, (bounds.width - joystickKnob.offsetWidth) / 2),
+    );
+    joystickPointerId = event.pointerId;
+    joystickElement.classList.add('is-active');
+    joystickElement.setPointerCapture(event.pointerId);
+    updateJoystick(event.clientX, event.clientY);
+  };
+
+  const handleJoystickMove = (event: PointerEvent): void => {
+    if (event.pointerId !== joystickPointerId || !touchInputEnabled()) return;
+    event.preventDefault();
+    updateJoystick(event.clientX, event.clientY);
+  };
+
+  const endJoystick = (event: PointerEvent, releaseCapture: boolean): void => {
+    if (event.pointerId !== joystickPointerId) return;
+    const pointerId = joystickPointerId;
+    resetJoystick();
+    if (releaseCapture && joystickElement.hasPointerCapture(pointerId)) {
+      joystickElement.releasePointerCapture(pointerId);
+    }
+  };
+
+  const handleCameraDown = (event: PointerEvent): void => {
+    if (!touchInputEnabled() || cameraPointerId !== null || event.button !== 0) return;
+    const button = event.currentTarget as HTMLButtonElement;
+    const direction = Number(button.dataset.touchCamera) as -1 | 1;
+    event.preventDefault();
+    cameraPointerId = event.pointerId;
+    activeCameraButton = button;
+    button.classList.add('is-active');
+    button.setPointerCapture(event.pointerId);
+    emitTouchCamera(direction);
+  };
+
+  const endCamera = (event: PointerEvent, releaseCapture: boolean): void => {
+    if (event.pointerId !== cameraPointerId || !activeCameraButton) return;
+    const pointerId = cameraPointerId;
+    const button = activeCameraButton;
+    resetCamera();
+    if (releaseCapture && button.hasPointerCapture(pointerId)) {
+      button.releasePointerCapture(pointerId);
+    }
+  };
+
+  joystickElement.addEventListener('pointerdown', handleJoystickDown);
+  joystickElement.addEventListener('pointermove', handleJoystickMove);
+  joystickElement.addEventListener('pointerup', (event) => endJoystick(event, true));
+  joystickElement.addEventListener('pointercancel', (event) => endJoystick(event, true));
+  joystickElement.addEventListener('lostpointercapture', (event) => endJoystick(event, false));
+  for (const button of cameraButtons) {
+    button.addEventListener('pointerdown', handleCameraDown);
+    button.addEventListener('pointerup', (event) => endCamera(event, true));
+    button.addEventListener('pointercancel', (event) => endCamera(event, true));
+    button.addEventListener('lostpointercapture', (event) => endCamera(event, false));
+  }
 
   const hideIntro = (): void => {
     if (!introVisible) return;
@@ -250,6 +417,7 @@ export function createHUD(total: number): HUDController {
   teardownCurrentHUD = () => {
     window.removeEventListener('keydown', handleKeydown);
     if (hintTimer !== undefined) window.clearTimeout(hintTimer);
+    resetTouchInput();
     releaseGameSurface();
   };
 
@@ -281,7 +449,7 @@ export function createHUD(total: number): HUDController {
       window.requestAnimationFrame(() => hintElement.classList.add('is-visible'));
       hintTimer = window.setTimeout(() => {
         hintElement.classList.remove('is-visible');
-      }, 2800);
+      }, compactTouchQuery.matches ? 1800 : 2800);
     },
 
     showStageComplete(stage: number, isFinal: boolean): void {
@@ -292,6 +460,7 @@ export function createHUD(total: number): HUDController {
       completedStage = safeWhole(stage, currentStage, 1);
       finalStageComplete = isFinal;
       completeVisible = true;
+      resetTouchInput();
       advanceLocked = false;
       advanceButton.disabled = false;
       completeElement.hidden = false;
@@ -304,10 +473,10 @@ export function createHUD(total: number): HUDController {
         : 'ほしあかりを、ぜんぶ見つけた。ひと休みしたら次の場所へ。';
       advanceLabel.textContent = isFinal ? 'タイトルへ もどる' : 'つぎのステージへ';
       lockGameSurface();
+      root.classList.add('is-complete');
       window.requestAnimationFrame(() => {
         if (!completeVisible) return;
         completeElement.classList.add('is-visible');
-        root.classList.add('is-complete');
         advanceButton.focus({ preventScroll: true });
       });
     },
@@ -336,6 +505,7 @@ export function createHUD(total: number): HUDController {
       hintTimer = undefined;
       hintElement.textContent = '';
       hintElement.classList.remove('is-visible');
+      resetTouchInput();
 
       completeVisible = false;
       advanceLocked = false;

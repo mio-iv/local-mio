@@ -15,6 +15,8 @@ White, soft-plastic, rounded mascot proportions with a large cyan display face. 
 ## Controls and camera
 WASD or arrows move relative to the view; Q/E or mouse drag rotates the third-person camera. Only the title button or Enter starts the game. Clicking elsewhere and Space do not start it.
 
+On touch-first smartphones and tablets, a left-side virtual joystick moves ちょぼ and two right-side touch buttons rotate the camera. Controls respect safe-area insets, prevent page scrolling during play, and remain usable in portrait and landscape layouts.
+
 ## Audio
 Calm procedural BGM is generated with the Web Audio API after the explicit start action. No external audio file is required.
 
@@ -25,4 +27,4 @@ Warm, compact, toy-like bedroom made entirely from Three.js geometry. Warm cream
 Approaching a glowing part collects it, updates the HUD and triggers particles/expression feedback. Each stage ends clearly, and stage 3 completion returns to the title.
 
 ## Technical constraints
-Vite + strict TypeScript + Three.js. Desktop Chrome/Edge target; responsive canvas/HUD. Geometry collision, capped pixel ratio, modest shadows and particles. No backend, persistence, APIs or deployment.
+Vite + strict TypeScript + Three.js. Current Chrome/Edge desktop plus modern iOS Safari and Android Chrome touch layouts; responsive canvas/HUD. Geometry collision, capped mobile pixel ratio, modest shadows and particles. No backend, persistence, APIs or deployment.

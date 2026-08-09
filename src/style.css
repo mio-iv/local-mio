@@ -23,8 +23,10 @@ html,
 body {
   width: 100%;
   height: 100%;
+  height: 100dvh;
   margin: 0;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -46,9 +48,16 @@ kbd {
 .chobo-ui {
   position: fixed;
   inset: 0;
+  height: 100dvh;
   z-index: 10;
   pointer-events: none;
   user-select: none;
+}
+
+.touch-controls,
+.touch-intro-controls,
+.touch-shortcut {
+  display: none;
 }
 
 .hud-top {
@@ -340,6 +349,321 @@ kbd {
 .hint-toast.is-visible {
   opacity: 1;
   transform: translate(-50%, 0) scale(1);
+}
+
+@media (pointer: coarse) {
+  html,
+  body,
+  #app,
+  canvas {
+    width: 100%;
+    height: 100dvh;
+  }
+
+  canvas,
+  .touch-controls,
+  .touch-move-control,
+  .touch-camera-button {
+    touch-action: none;
+  }
+
+  .intro-overlay,
+  .complete-overlay {
+    touch-action: pan-y;
+  }
+
+  .controls-card {
+    display: none;
+  }
+
+  .part-counter,
+  .stage-indicator,
+  .compass,
+  .touch-move-control,
+  .intro-overlay::before {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .chobo-ui.has-started:not(.is-complete) .touch-controls {
+    position: absolute;
+    right: max(14px, calc(env(safe-area-inset-right) + 10px));
+    bottom: max(14px, calc(env(safe-area-inset-bottom) + 10px));
+    left: max(14px, calc(env(safe-area-inset-left) + 10px));
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    min-height: 124px;
+    pointer-events: none;
+  }
+
+  .touch-move-control {
+    position: relative;
+    width: 124px;
+    height: 124px;
+    flex: 0 0 124px;
+    border: 2px solid rgb(255 255 255 / 72%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgb(255 255 255 / 20%) 0 28%, transparent 29%), rgb(37 69 69 / 38%);
+    box-shadow: inset 0 0 0 7px rgb(255 255 255 / 8%), 0 9px 28px rgb(28 57 57 / 20%);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+
+  .joystick-guide {
+    position: absolute;
+    inset: 17px;
+    border: 1px dashed rgb(255 255 255 / 36%);
+    border-radius: 50%;
+  }
+
+  .joystick-guide::before,
+  .joystick-guide::after {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    background: rgb(255 255 255 / 22%);
+    content: "";
+    transform: translate(-50%, -50%);
+  }
+
+  .joystick-guide::before { width: 1px; height: 100%; }
+  .joystick-guide::after { width: 100%; height: 1px; }
+
+  .joystick-knob {
+    position: absolute;
+    z-index: 2;
+    left: 50%;
+    top: 50%;
+    width: 54px;
+    height: 54px;
+    border: 2px solid rgb(255 255 255 / 84%);
+    border-radius: 50%;
+    background: linear-gradient(145deg, rgb(166 237 218 / 96%), rgb(68 159 151 / 96%));
+    box-shadow: inset 0 2px 3px rgb(255 255 255 / 42%), 0 6px 15px rgb(29 72 69 / 32%);
+    transform: translate(-50%, -50%);
+    will-change: transform;
+  }
+
+  .joystick-label {
+    position: absolute;
+    left: 50%;
+    bottom: 7px;
+    color: rgb(255 255 255 / 80%);
+    font-family: ui-monospace, monospace;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: .18em;
+    transform: translateX(-50%);
+  }
+
+  .touch-move-control.is-active {
+    background-color: rgb(37 80 76 / 48%);
+  }
+
+  .touch-camera-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+  }
+
+  .touch-camera-button {
+    display: grid;
+    place-items: center;
+    width: 68px;
+    height: 68px;
+    min-width: 68px;
+    min-height: 68px;
+    padding: 0;
+    border: 2px solid rgb(255 255 255 / 76%);
+    border-radius: 23px;
+    background: rgb(36 70 71 / 60%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%), 0 8px 22px rgb(25 55 56 / 22%);
+    color: white;
+    cursor: pointer;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+
+  .touch-camera-button span {
+    font-size: 48px;
+    font-weight: 400;
+    line-height: .7;
+    transform: translateY(-2px);
+  }
+
+  .touch-camera-button.is-active {
+    background: rgb(48 129 122 / 86%);
+    box-shadow: inset 0 3px 8px rgb(20 68 64 / 30%);
+    transform: translateY(2px) scale(.97);
+  }
+
+  .touch-camera-button:focus-visible {
+    outline: 4px solid #ffe188;
+    outline-offset: 3px;
+  }
+
+  .hint-toast {
+    bottom: max(154px, calc(env(safe-area-inset-bottom) + 146px));
+  }
+
+  .chobo-ui .intro-controls {
+    display: none;
+  }
+
+  .chobo-ui .touch-intro-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 0 0 21px;
+  }
+
+  .touch-intro-controls > span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 70px;
+    padding: 8px 5px;
+    border: 1px solid #deebe5;
+    border-radius: 14px;
+    background: rgb(239 248 243 / 80%);
+    flex-wrap: wrap;
+  }
+
+  .touch-intro-controls small {
+    display: block;
+    flex-basis: 100%;
+    color: #536f6b;
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .touch-demo-stick {
+    position: relative;
+    display: block;
+    width: 31px;
+    height: 31px;
+    border: 2px solid #7bb9ad;
+    border-radius: 50%;
+    background: #e2f5ee;
+  }
+
+  .touch-demo-stick b {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #4b9e94;
+    transform: translate(-35%, -70%);
+  }
+
+  .touch-demo-camera {
+    display: flex;
+    gap: 4px;
+  }
+
+  .touch-demo-camera b {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 27px;
+    border-radius: 8px;
+    background: #4b7775;
+    color: white;
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .touch-demo-star {
+    color: #c18a24;
+    font-size: 29px;
+    font-style: normal;
+    text-shadow: 0 0 10px #ffe7a2;
+  }
+
+  .keyboard-shortcut {
+    display: none;
+  }
+
+  .primary-button .touch-shortcut {
+    display: inline;
+  }
+}
+
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 400px) {
+  .hint-toast {
+    top: max(76px, calc(env(safe-area-inset-top) + 68px));
+    bottom: auto;
+    max-width: min(260px, calc(100vw - 220px));
+    padding: 8px 13px;
+    font-size: 11px;
+  }
+}
+
+@media (pointer: coarse) and (orientation: portrait) and (max-width: 430px) {
+  .touch-camera-controls {
+    gap: 9px;
+  }
+
+  .touch-camera-button {
+    width: 62px;
+    height: 62px;
+    min-width: 62px;
+    min-height: 62px;
+  }
+}
+
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  .chobo-ui.has-started:not(.is-complete) .touch-controls {
+    min-height: 98px;
+  }
+
+  .touch-move-control {
+    width: 98px;
+    height: 98px;
+    flex-basis: 98px;
+  }
+
+  .touch-camera-button {
+    width: 58px;
+    height: 58px;
+    min-width: 58px;
+    min-height: 58px;
+    border-radius: 19px;
+  }
+
+  .touch-camera-button span {
+    font-size: 42px;
+  }
+
+  .hint-toast {
+    bottom: max(116px, calc(env(safe-area-inset-bottom) + 108px));
+  }
+
+  .chobo-ui .intro-card,
+  .chobo-ui .complete-card {
+    padding-block: 14px;
+  }
+
+  .chobo-ui .signal-mark,
+  .chobo-ui .gentle-note {
+    display: none;
+  }
+
+  .touch-intro-controls {
+    margin-bottom: 12px;
+  }
+
+  .touch-intro-controls > span {
+    min-height: 50px;
+  }
 }
 
 .intro-overlay,
@@ -822,6 +1146,15 @@ kbd {
     border: 2px solid CanvasText;
     background: Canvas;
     color: CanvasText;
+    forced-color-adjust: auto;
+  }
+
+  .touch-move-control,
+  .joystick-knob,
+  .touch-camera-button {
+    border: 2px solid ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
     forced-color-adjust: auto;
   }
 
